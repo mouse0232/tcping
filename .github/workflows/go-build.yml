@@ -29,7 +29,7 @@ jobs:
         GOOS: ${{ matrix.goos }}
         GOARCH: ${{ matrix.goarch }}
       run: |
-        GOOS=${{ env.GOOS }} GOARCH=${{ env.GOARCH }} go build -v -o bin/${{ matrix.goos }}-${{ matrix.goarch }}/tcping ./cmd/tcping/main.go
+        GOOS=${{ env.GOOS }} GOARCH=${{ env.GOARCH }} go build -v -o bin/${{ matrix.goos }}-${{ matrix.goarch }}/tcping ./src/main.go
 
     - name: Upload binaries
       if: success() # 只在构建成功时上传

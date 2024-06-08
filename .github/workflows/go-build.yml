@@ -20,7 +20,7 @@ jobs:
 
     - name: Build
       run: |
-        go build -v ./... # 编译所有Go包和主程序
+        go build -o ./bin/myapp ./... # 编译所有Go包和主程序
         # 如果你的项目只需要编译主程序，可以指定为：
         # go build -v ./main.go
 

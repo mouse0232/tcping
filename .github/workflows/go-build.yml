@@ -29,7 +29,8 @@ jobs:
         GOOS: ${{ matrix.goos }}
         GOARCH: ${{ matrix.goarch }}
       run: |
-        GOOS=${{ env.GOOS }} GOARCH=${{ env.GOARCH }} go build -v -o bin/${{ matrix.goos }}-${{ matrix.goarch }}/tcping ./cmd/tcping/main.go
+           run: |
+           GOOS=${{ env.GOOS }} GOARCH=${{ env.GOARCH }} go build -v -o bin/${{ matrix.goos }}-${{ matrix.goarch }}/tcping ./main.go
         # 上述命令假设你的主程序入口在cmd/tcping/main.go，根据实际情况调整
 
     - name: Upload binaries

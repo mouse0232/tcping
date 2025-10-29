@@ -95,12 +95,12 @@ Copyright (c) 2025. All rights reserved.
 
 #### 🌍 境外服务器
 ```bash
-bash <(curl -Ls https://raw.githubusercontent.com/nodeseeker/tcping/main/install.sh) --force
+bash <(curl -Ls https://raw.githubusercontent.com/mouse0232/tcping/main/install.sh) --force
 ```
 
 #### 🇨🇳 境内服务器（国内优化版）
 ```bash
-bash <(curl -Ls https://gh-proxy.com/raw.githubusercontent.com/nodeseeker/tcping/main/install_cn.sh) --force
+bash <(curl -Ls https://gh-proxy.com/raw.githubusercontent.com/mouse0232/tcping/main/install_cn.sh) --force
 ```
 
 > **注意：** 脚本会自动安装到 `/usr/local/bin` 目录，需要root权限

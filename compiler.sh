@@ -41,6 +41,12 @@ for PLATFORM in "${PLATFORMS[@]}"; do
   # 设置环境变量并编译
   echo "编译 ${GOOS}/${GOARCH}..."
   CGO_ENABLED=0 GOOS=$GOOS GOARCH=$GOARCH go build -trimpath -ldflags="-w -s" -o "$OUT_FILE" $SRC_PATH
+  
+  # 检查编译是否成功
+  if [ $? -ne 0 ]; then
+    echo "编译 ${GOOS}/${GOARCH} 失败"
+    exit 1
+  fi
 
   # 判断是否是 Windows 平台，需要添加 .exe 扩展名
   if [ "$GOOS" == "windows" ]; then
@@ -51,6 +57,12 @@ for PLATFORM in "${PLATFORMS[@]}"; do
   # 压缩成 .zip 文件
   echo "压缩 ${OUT_FILE}..."
   zip -j "$OUT_DIR/$APP_NAME-${GOOS}-${GOARCH}.zip" "$OUT_FILE"
+  
+  # 检查压缩是否成功
+  if [ $? -ne 0 ]; then
+    echo "压缩 ${OUT_FILE} 失败"
+    exit 1
+  fi
 
   # 计算 SHA256 值并追加到 SHA256SUMS.txt 中
   sha256sum "$OUT_DIR/$APP_NAME-${GOOS}-${GOARCH}.zip" >> "$OUT_DIR/SHA256SUMS.txt"

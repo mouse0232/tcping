@@ -55,14 +55,12 @@ func (s *Statistics) update(elapsed float64, success bool) {
 	}
 
 	// 计算抖动 (当前时间与上一次时间的差值的绝对值)
-	if s.respondedCount > 1 {
-		jitter := elapsed - s.lastTime
-		if jitter < 0 {
-			jitter = -jitter
-		}
-		s.totalJitter += jitter
-		s.jitterCount++
+	jitter := elapsed - s.lastTime
+	if jitter < 0 {
+		jitter = -jitter
 	}
+	s.totalJitter += jitter
+	s.jitterCount++
 	s.lastTime = elapsed
 
 	// 更新最小和最大时间
@@ -96,6 +94,7 @@ func (s *Statistics) getJitter() float64 {
 	return 0.0
 }
 
+// ... existing code ...
 type Options struct {
 	UseIPv4     bool
 	UseIPv6     bool
@@ -107,7 +106,10 @@ type Options struct {
 	ShowVersion bool
 	ShowHelp    bool
 	Port        int
+	PacketSize  int // 添加数据包大小选项
 }
+
+// ... existing code ...
 
 func handleError(err error, exitCode int) {
 	if err != nil {
@@ -116,6 +118,7 @@ func handleError(err error, exitCode int) {
 	}
 }
 
+// ... existing code ...
 func printHelp() {
 	fmt.Printf(`%s %s - TCP 连接测试工具
 
@@ -136,6 +139,7 @@ func printHelp() {
     -v, --verbose           启用详细模式，显示更多连接信息
     -V, --version           显示版本信息
     -h, --help              显示此帮助信息
+    -s, --size <字节>       指定发送数据包的大小（字节）
 
 示例:
     tcping google.com                	# 基本用法 (默认端口 80)
@@ -144,9 +148,12 @@ func printHelp() {
     tcping -4 -n 5 8.8.8.8 443       	# IPv4, 5次请求
     tcping -w 2000 example.com 22    	# 2秒超时
     tcping -c -v example.com 443     	# 彩色输出和详细模式
+    tcping -s 1024 example.com 80    	# 发送1024字节的数据包
 
 `, programName, version, programName)
 }
+
+// ... existing code ...
 
 func printVersion() {
 	fmt.Printf("%s 版本 %s\n", programName, version)
@@ -231,6 +238,7 @@ func getIPType(address string) (isIPv4, isIPv6 bool) {
 	return ip.To4() != nil, ip.To4() == nil
 }
 
+// ... existing code ...
 func pingOnce(ctx context.Context, address, port string, timeout int, stats *Statistics, seq int, ip string,
 	opts *Options) {
 	// 创建可取消的连接上下文，继承父上下文
@@ -262,6 +270,37 @@ func pingOnce(ctx context.Context, address, port string, timeout int, stats *Sta
 		return
 	}
 
+	// 如果指定了数据包大小，则发送数据
+	if opts.PacketSize > 0 {
+		// 检查context是否已经取消
+		if ctx.Err() == context.Canceled {
+			conn.Close()
+			msg := "\n操作被中断, 连接尝试已中止\n"
+			fmt.Print(infoText(msg, opts.ColorOutput))
+			return
+		}
+
+		data := make([]byte, opts.PacketSize)
+		// 填充一些数据以避免数据包被完全优化掉
+		for i := range data {
+			data[i] = byte(i % 256)
+		}
+
+		// 发送数据
+		_, writeErr := conn.Write(data)
+		if writeErr != nil {
+			conn.Close() // 立即关闭连接
+			msg := fmt.Sprintf("发送数据包失败 %s:%s: seq=%d 错误=%v\n", ip, port, seq, writeErr)
+			fmt.Print(errorText(msg, opts.ColorOutput))
+			return
+		}
+
+		// 如果是详细模式，显示发送的数据包大小
+		if opts.VerboseMode {
+			fmt.Printf("  详细信息: 已发送 %d 字节数据包\n", opts.PacketSize)
+		}
+	}
+
 	// 确保连接被关闭
 	defer conn.Close()
 	msg := fmt.Sprintf("从 %s:%s 收到响应: seq=%d time=%.2fms\n", ip, port, seq, elapsed)
@@ -272,6 +311,8 @@ func pingOnce(ctx context.Context, address, port string, timeout int, stats *Sta
 		fmt.Printf("  详细信息: 本地地址=%s, 远程地址=%s:%s\n", localAddr, ip, port)
 	}
 }
+
+// ... existing code ...
 
 func printTCPingStatistics(stats *Statistics, opts *Options) {
 	sent, responded, min, max, avg := stats.getStats()
@@ -315,6 +356,7 @@ func infoText(text string, useColor bool) string {
 	return colorText(text, "36", useColor) // 青色
 }
 
+// ... existing code ...
 func setupFlags(opts *Options) {
 	// 定义命令行标志，同时设置短选项和长选项
 	flag.BoolVar(&opts.UseIPv4, "4", false, "使用 IPv4 地址")
@@ -337,9 +379,13 @@ func setupFlags(opts *Options) {
 	flag.BoolVar(&opts.ShowVersion, "version", false, "显示版本信息")
 	flag.BoolVar(&opts.ShowHelp, "h", false, "显示帮助信息")
 	flag.BoolVar(&opts.ShowHelp, "help", false, "显示帮助信息")
+	flag.IntVar(&opts.PacketSize, "s", 0, "指定发送数据包的大小（字节）")
+	flag.IntVar(&opts.PacketSize, "size", 0, "指定发送数据包的大小（字节）")
 
 	flag.Parse()
 }
+
+// ... existing code ...
 
 // 新增集中的参数验证函数
 func validateOptions(opts *Options, args []string) (string, string, error) {

@@ -248,7 +248,7 @@ func pingOnce(ctx context.Context, address, port string, timeout int, stats *Sta
 	start := time.Now()
 	var d net.Dialer
 	conn, err := d.DialContext(dialCtx, "tcp", address+":"+port)
-	elapsed := float64(time.Since(start).Microseconds()) / 1000.0
+	connectTime := float64(time.Since(start).Microseconds()) / 1000.0
 
 	// 检查是否因为主上下文取消而失败
 	if ctx.Err() == context.Canceled {
@@ -258,20 +258,9 @@ func pingOnce(ctx context.Context, address, port string, timeout int, stats *Sta
 	}
 
 	success := err == nil
-	stats.update(elapsed, success)
 
-	if !success {
-		msg := fmt.Sprintf("TCP连接失败 %s:%s: seq=%d 错误=%v\n", ip, port, seq, err)
-		fmt.Print(errorText(msg, opts.ColorOutput))
-
-		if opts.VerboseMode {
-			fmt.Printf("  详细信息: 连接尝试耗时 %.2fms, 目标 %s:%s\n", elapsed, address, port)
-		}
-		return
-	}
-
-	// 如果指定了数据包大小，则发送数据
-	if opts.PacketSize > 0 {
+	// 如果连接成功且需要发送数据包，则发送数据
+	if success && opts.PacketSize > 0 {
 		// 检查context是否已经取消
 		if ctx.Err() == context.Canceled {
 			conn.Close()
@@ -286,19 +275,49 @@ func pingOnce(ctx context.Context, address, port string, timeout int, stats *Sta
 			data[i] = byte(i % 256)
 		}
 
+		writeStart := time.Now()
 		// 发送数据
 		_, writeErr := conn.Write(data)
+		writeTime := float64(time.Since(writeStart).Microseconds()) / 1000.0
+
 		if writeErr != nil {
+			success = false
 			conn.Close() // 立即关闭连接
-			msg := fmt.Sprintf("发送数据包失败 %s:%s: seq=%d 错误=%v\n", ip, port, seq, writeErr)
+			err = writeErr
+
+			msg := fmt.Sprintf("发送数据包失败 %s:%s: seq=%d 错误=%v\n", ip, port, seq, err)
 			fmt.Print(errorText(msg, opts.ColorOutput))
+
+			// 记录总时间（连接+数据发送尝试时间）
+			elapsed := connectTime + writeTime
+			stats.update(elapsed, false)
+
+			if opts.VerboseMode {
+				fmt.Printf("  详细信息: 连接时间=%.2fms, 数据发送时间=%.2fms, 总时间=%.2fms\n",
+					connectTime, writeTime, elapsed)
+			}
 			return
 		}
 
-		// 如果是详细模式，显示发送的数据包大小
+		// 如果是详细模式，显示发送的数据包大小和时间
 		if opts.VerboseMode {
-			fmt.Printf("  详细信息: 已发送 %d 字节数据包\n", opts.PacketSize)
+			fmt.Printf("  详细信息: 已发送 %d 字节数据包，用时 %.2fms\n", opts.PacketSize, writeTime)
 		}
+	}
+
+	// 计算总耗时（包括数据发送时间）
+	elapsed := float64(time.Since(start).Microseconds()) / 1000.0
+	stats.update(elapsed, success)
+
+	if !success {
+		msg := fmt.Sprintf("TCP连接失败 %s:%s: seq=%d 错误=%v\n", ip, port, seq, err)
+		fmt.Print(errorText(msg, opts.ColorOutput))
+
+		if opts.VerboseMode {
+			fmt.Printf("  详细信息: 连接尝试耗时 %.2fms, 目标 %s:%s\n", connectTime, address, port)
+		}
+		conn.Close()
+		return
 	}
 
 	// 确保连接被关闭
@@ -309,6 +328,10 @@ func pingOnce(ctx context.Context, address, port string, timeout int, stats *Sta
 	if opts.VerboseMode {
 		localAddr := conn.LocalAddr().String()
 		fmt.Printf("  详细信息: 本地地址=%s, 远程地址=%s:%s\n", localAddr, ip, port)
+		if opts.PacketSize > 0 {
+			writeTime := elapsed - connectTime
+			fmt.Printf("  详细信息: 连接时间=%.2fms, 数据发送时间=%.2fms\n", connectTime, writeTime)
+		}
 	}
 }
 
